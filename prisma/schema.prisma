@@ -1,0 +1,198 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum BookingStatus {
+  DRAFT
+  PENDING_PAYMENT
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum CalendarProvider {
+  GOOGLE
+  APPLE_ICS
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id              String        @id @default(uuid())
+  name            String
+  email           String?       @unique
+  phone           String?       @unique
+  passwordHash    String?
+  role            UserRole      @default(CUSTOMER)
+  bookings        Booking[]
+  unavailableDates UnavailableDate[]
+  adminNotes      AdminNote[]
+  auditLogs       AuditLog[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("users")
+}
+
+model Service {
+  id              String        @id @default(uuid())
+  name            String
+  slug            String        @unique
+  description     String?
+  basePrice       Int           @default(0)
+  durationMinutes Int?
+  imageUrl        String?
+  sortOrder       Int           @default(0)
+  status          ServiceStatus @default(ACTIVE)
+  bookings        Booking[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("services")
+}
+
+model Booking {
+  id              String        @id @default(uuid())
+  customerId      String?
+  customer        User?         @relation(fields: [customerId], references: [id])
+  serviceId       String
+  service         Service       @relation(fields: [serviceId], references: [id])
+  eventDate       DateTime
+  eventStartTime  String
+  eventEndTime    String
+  eventLocation   String?
+  eventAddress    String?
+  notes           String?
+  agreedPrice     Int           @default(0)
+  status          BookingStatus @default(DRAFT)
+  rejectionReason String?
+  cancelledReason String?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  cancelledAt     DateTime?
+  completedAt     DateTime?
+  paymentProofs   PaymentProof[]
+  calendarEvents  CalendarEvent[]
+  adminNotes      AdminNote[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([eventDate])
+  @@index([status])
+  @@map("bookings")
+}
+
+model PaymentProof {
+  id          String        @id @default(uuid())
+  bookingId   String
+  booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fileUrl     String
+  filePublicId String?
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
+  notes       String?
+  status      PaymentStatus @default(WAITING_APPROVAL)
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  uploadedAt  DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("payment_proofs")
+}
+
+model TimeSlot {
+  id          String   @id @default(uuid())
+  label       String
+  startTime   String
+  endTime     String
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("time_slots")
+}
+
+model UnavailableDate {
+  id          String   @id @default(uuid())
+  date        DateTime
+  reason      String?
+  isFullDay   Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@map("unavailable_dates")
+}
+
+model CalendarEvent {
+  id                    String           @id @default(uuid())
+  bookingId             String
+  booking               Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  provider              CalendarProvider
+  googleCalendarEventId String?
+  googleCalendarHtmlLink String?
+  icsUrl                String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@index([bookingId])
+  @@map("calendar_events")
+}
+
+model AdminNote {
+  id        String   @id @default(uuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@map("admin_notes")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType])
+  @@index([entityId])
+  @@map("audit_logs")
+}
